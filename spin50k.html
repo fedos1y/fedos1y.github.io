@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Фруктовый слот v2</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #1a1a2e; /* Темно-синий фон */
+            font-family: 'Inter', sans-serif;
+            color: #e0e0e0; /* Светлый текст по умолчанию */
+        }
+        .slot-reel {
+            background-color: #2c2c54;
+            border: 2px solid #40407a;
+            box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5);
+            transition: transform 0.3s ease-out;
+            width: 80px; /* Ширина барабана */
+            height: 100px; /* Высота барабана */
+        }
+        .slot-symbol {
+            font-size: 3.5rem; /* Размер символов */
+            line-height: 1;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+        }
+        .play-button {
+            background: linear-gradient(180deg, #ff6b6b 0%, #ee5253 100%);
+            transition: background 0.3s ease, transform 0.1s ease;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+        }
+        .play-button:hover {
+            background: linear-gradient(180deg, #ee5253 0%, #ff6b6b 100%);
+        }
+        .play-button:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px 3px rgba(0, 0, 0, 0.2);
+        }
+        .play-button:disabled {
+            background: #777; /* Темнее серый для неактивной кнопки */
+            cursor: not-allowed;
+            opacity: 0.6;
+            box-shadow: none;
+        }
+        /* Анимация вращения */
+        @keyframes spin {
+            0% { transform: translateY(-15px); opacity: 0.5; }
+            50% { transform: translateY(15px); opacity: 0.5; }
+            100% { transform: translateY(0); opacity: 1; }
+        }
+        .spinning {
+            animation: spin 0.2s linear 3;
+        }
+        /* Стили для списка призов */
+        .prize-list-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 4px;
+            font-size: 0.9rem;
+        }
+        .prize-icon {
+            margin-right: 8px;
+            font-size: 1.1rem; /* Размер иконок в списке */
+            width: 4.5em; /* Немного увеличена ширина для надежности */
+            display: inline-block;
+            text-align: center;
+            white-space: nowrap; /* Добавлено: Запрет переноса символов */
+        }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="main-container bg-gray-800 p-6 md:p-8 rounded-lg shadow-xl text-center max-w-md w-full">
+
+        <div id="spin-counter" class="text-xl font-bold text-yellow-400 mb-4">Спин №1 | Осталось: 10</div>
+
+        <div class="flex justify-center space-x-3 md:space-x-4 mb-6">
+            <div id="slot1" class="slot-reel rounded-md flex items-center justify-center">
+                <span class="slot-symbol">❓</span>
+            </div>
+            <div id="slot2" class="slot-reel rounded-md flex items-center justify-center">
+                <span class="slot-symbol">❓</span>
+            </div>
+            <div id="slot3" class="slot-reel rounded-md flex items-center justify-center">
+                <span class="slot-symbol">❓</span>
+            </div>
+        </div>
+
+        <p id="message" class="text-gray-300 mb-4 min-h-[2rem]">У вас есть 10 спинов. Нажмите «Играть»!</p>
+
+        <button id="play-button" class="play-button text-white font-bold py-3 px-8 rounded-lg text-xl w-full mb-6">
+            ИГРАТЬ
+        </button>
+
+        <div id="prize-list" class="text-left text-sm text-gray-400 border-t border-gray-700 pt-4">
+             <div class="prize-list-item">
+                <span class="prize-icon">🎁🎁🎁</span> - +5 спинов
+             </div>
+             <div class="prize-list-item">
+                <span class="prize-icon">🍒🍒🍒</span> - Бонуска на 80.000₽
+             </div>
+             <div class="prize-list-item">
+                <span class="prize-icon">🍉🍉🍉</span> - Ваучер на 33.333₽
+             </div>
+              <div class="prize-list-item">
+                <span class="prize-icon">🔔🔔🔔</span> - Чек на 0.01 BTC ($849)
+             </div>
+             <div class="prize-list-item">
+                <span class="prize-icon">🍓🍓🍓</span> - 500 FS
+             </div>
+        </div>
+    </div>
+
+    <script>
+        // Элементы DOM
+        const spinCounterText = document.getElementById('spin-counter');
+        const playButton = document.getElementById('play-button');
+        const message = document.getElementById('message');
+        const slots = [
+            document.getElementById('slot1').querySelector('.slot-symbol'),
+            document.getElementById('slot2').querySelector('.slot-symbol'),
+            document.getElementById('slot3').querySelector('.slot-symbol')
+        ];
+        const slotReels = [
+            document.getElementById('slot1'),
+            document.getElementById('slot2'),
+            document.getElementById('slot3')
+        ];
+
+        // Символы
+        const symbols = ['🍒', '🍊', '🍋', '🍉', '⭐', '🔔', '🎁', '🍓'];
+        const giftSymbol = '🎁';
+        const initialSpins = 10;
+        const localStorageKeySpins = 'fruitSlotSpinsLeftV2'; // Ключ для спинов
+        const localStorageKeyBonus = 'fruitSlotBonusAwardedV2'; // Ключ для флага бонуса
+
+        // Состояние игры
+        let spinsLeft;
+        let totalSpinsMade;
+        let isSpinning = false;
+        let bonusSpinsAwarded = false; // Флаг: был ли уже выдан бонус +5
+
+        // --- Функции ---
+
+        // Функция инициализации игры
+        function initializeGame() {
+            const savedSpins = localStorage.getItem(localStorageKeySpins);
+            const savedBonusFlag = localStorage.getItem(localStorageKeyBonus);
+
+            totalSpinsMade = 0; // Сбрасываем при каждой инициализации
+
+            if (savedSpins !== null && !isNaN(parseInt(savedSpins))) {
+                spinsLeft = parseInt(savedSpins, 10);
+                bonusSpinsAwarded = (savedBonusFlag === 'true'); // Загружаем флаг
+
+                // Попытка восстановить totalSpinsMade (все еще не идеально без сохранения)
+                let potentialTotalSpins = initialSpins - spinsLeft;
+                if (bonusSpinsAwarded && spinsLeft >= 5) { // Если бонус был, и спинов > 5, расчет сложнее
+                   // Оставляем неточный расчет или можно добавить сложную логику
+                   // пока оставляем простой расчет
+                   potentialTotalSpins = initialSpins + 5 - spinsLeft; // Примерный расчет с учетом бонуса
+                }
+                 if (potentialTotalSpins >= 0) {
+                     totalSpinsMade = potentialTotalSpins;
+                 }
+
+            } else {
+                // Свежий старт
+                spinsLeft = initialSpins;
+                totalSpinsMade = 0;
+                bonusSpinsAwarded = false;
+                localStorage.setItem(localStorageKeySpins, spinsLeft);
+                localStorage.setItem(localStorageKeyBonus, bonusSpinsAwarded); // Сохраняем начальное значение флага
+            }
+
+            updateDisplays();
+
+            if (spinsLeft <= 0) {
+                endGame();
+            } else {
+                playButton.disabled = false;
+            }
+            slots.forEach(slot => slot.textContent = '❓');
+        }
+
+        // Обновление отображения счетчика и сообщений
+        function updateDisplays() {
+            spinCounterText.textContent = `Спин №${totalSpinsMade + 1} | Осталось: ${spinsLeft}`;
+            if (spinsLeft > 0 && !isSpinning) {
+                 message.textContent = `У вас есть ${spinsLeft} спинов. Нажмите «Играть»!`;
+            } else if (spinsLeft <= 0) {
+                 // endGame() установит сообщение
+            }
+        }
+
+        // Функция завершения игры
+        function endGame() {
+            message.textContent = 'Увы, удача вам не улыбнулась, но вы всегда можете испытать ее на 1win!';
+            playButton.disabled = true;
+        }
+
+        // Получение случайного символа
+        function getRandomSymbol(excludeGift = false) {
+            let availableSymbols = symbols;
+            if (excludeGift) {
+                availableSymbols = symbols.filter(s => s !== giftSymbol);
+            }
+            if (availableSymbols.length === 0) return symbols[0];
+            return availableSymbols[Math.floor(Math.random() * availableSymbols.length)];
+        }
+
+        // Анимация вращения
+        function spinReels(finalResult) {
+            isSpinning = true;
+            playButton.disabled = true;
+            message.textContent = 'Вращаем...';
+
+            slotReels.forEach(reel => reel.classList.add('spinning'));
+
+            let spinInterval = setInterval(() => {
+                 slots.forEach((slot) => {
+                     slot.textContent = getRandomSymbol(true);
+                 });
+            }, 50);
+
+            setTimeout(() => {
+                 clearInterval(spinInterval);
+                 slotReels.forEach(reel => reel.classList.remove('spinning'));
+                 showResult(finalResult);
+                 isSpinning = false;
+            }, 600);
+        }
+
+        // Показ результата спина
+        function showResult(result) {
+            slots.forEach((slot, index) => {
+                slot.textContent = result[index];
+            });
+
+            // Проверяем выигрыш (три подарка) и что бонус еще не был выдан
+            if (result.every(symbol => symbol === giftSymbol) && !bonusSpinsAwarded) {
+                message.textContent = '+5 Прокрутов!';
+                spinsLeft += 5;
+                bonusSpinsAwarded = true; // Устанавливаем флаг
+                localStorage.setItem(localStorageKeySpins, spinsLeft); // Сохраняем спины
+                localStorage.setItem(localStorageKeyBonus, bonusSpinsAwarded); // Сохраняем флаг
+                updateDisplays(); // Обновляем счетчик с учетом бонуса
+            } else {
+                 if (spinsLeft > 0) {
+                    // Если выпали подарки, но бонус уже был, или выпало что-то другое
+                    message.textContent = 'Попробуйте еще!';
+                 }
+            }
+
+            if (spinsLeft <= 0) {
+                endGame();
+            } else {
+                playButton.disabled = false;
+            }
+        }
+
+        // Обработчик нажатия на кнопку "Играть"
+        playButton.addEventListener('click', () => {
+            if (isSpinning || spinsLeft <= 0) return;
+
+            const spinsBeforeClick = spinsLeft;
+
+            spinsLeft--;
+            totalSpinsMade++;
+
+            // Сохраняем только спины здесь, флаг сохраняется при выдаче бонуса
+            localStorage.setItem(localStorageKeySpins, spinsLeft);
+            updateDisplays();
+
+            let result;
+            // Проверяем условие для бонуса: было 4 спина, стало 3, И бонус еще не выдавался
+            if (spinsBeforeClick === 4 && spinsLeft === 3 && !bonusSpinsAwarded) {
+                 result = [giftSymbol, giftSymbol, giftSymbol];
+                 // Флаг bonusSpinsAwarded будет установлен в showResult
+            } else {
+                 // Генерируем случайный результат, ИСКЛЮЧАЯ три подарка
+                 do {
+                    result = [getRandomSymbol(), getRandomSymbol(), getRandomSymbol()];
+                 } while (result.every(symbol => symbol === giftSymbol));
+            }
+
+            spinReels(result);
+        });
+
+        // Инициализация игры при загрузке страницы
+        initializeGame();
+
+    </script>
+
+</body>
+</html>
